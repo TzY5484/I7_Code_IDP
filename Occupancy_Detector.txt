@@ -1,0 +1,140 @@
+import sys
+import cv2
+import torch
+
+from PyQt5 import QtCore
+from PyQt5.QtCore import pyqtSlot, Qt
+from PyQt5.QtGui import QImage, QPixmap, QFont
+from PyQt5.QtWidgets import QDialog, QApplication
+from PyQt5.uic import loadUi
+
+class Realtime(QDialog):
+    def __init__(self):
+        super(Realtime, self).__init__()
+
+        loadUi('cvcapture.ui', self)
+
+        self.logic = 0
+        self.value = 1
+        self.people_count = 0
+        self.damper_position = 0  # Initial damper position
+        self.SHOW.clicked.connect(self.onClicked)
+        self.TEXT.setText('Kindly Press "Show" to connect with the webcam.')
+        self.CAPTURE.clicked.connect(self.CaptureClicked)
+
+        # Load YOLOv5 model
+        self.model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
+        self.model.classes = [0]
+
+    @pyqtSlot()
+    def onClicked(self):
+        self.TEXT.setText('Kindly Press Capture Image to capture an image')
+
+        cap = cv2.VideoCapture(0)
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if ret:
+                self.detectPeople(frame)
+                self.adjustDamper()  # New function to adjust damper based on people count
+                self.displayImage(frame, 1)
+                cv2.waitKey(10)
+
+                if self.logic == 2:
+                    self.value += 1
+                    cv2.imwrite('C:/Users/user/PycharmProjects/Assignment/SavedImages/%s.png' % (self.value), frame)
+
+                    self.logic = 1
+                    self.TEXT.setText('Your Image Saved, For another image press again "Capture button"')
+
+            else:
+                print('Return not found')
+        cap.release()
+        cv2.destroyAllWindows()
+
+    def CaptureClicked(self):
+        self.logic = 2
+
+    def displayImage(self, img, window=1):
+        qformat = QImage.Format_Indexed8
+
+        if len(img.shape) == 3:
+            if img.shape[2] == 4:
+                qformat = QImage.Format_RGBA888
+            else:
+                qformat = QImage.Format_RGB888
+
+        img = QImage(img, img.shape[1], img.shape[0], qformat)
+        img = img.rgbSwapped()
+        self.imgLabel.setPixmap(QPixmap.fromImage(img))
+        self.imgLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+
+        # Set the text in the COUNTER text browser
+        self.COUNTER.setPlainText(f'People Count: {self.people_count}')
+        font = QFont("Arial", 16)  # Adjust the font family and size as needed
+        self.COUNTER.setFont(font)
+
+        # Set text alignment to center
+        self.COUNTER.setAlignment(Qt.AlignCenter)
+
+        # Set the text in the FEEDBACK text browser
+        self.FEEDBACK.setPlainText(f'{self.damper_position}% opened')
+        # Adjust the font family and size for the feedback
+        feedback_font = QFont("Arial", 14)
+        self.FEEDBACK.setFont(feedback_font)
+
+        # Set text alignment to center
+        self.FEEDBACK.setAlignment(Qt.AlignCenter)
+
+    def detectPeople(self, frame):
+        # Perform YOLOv5 inference
+        results = self.model(frame)
+
+        # Get bounding box coordinates, class labels, and confidence scores
+        bboxes = results.xyxy[0].cpu().numpy()
+        class_labels = results.xyxy[0][:, -1].cpu().numpy()
+        confidence_scores = results.xyxy[0][:, -2].cpu().numpy()
+
+        # Define class names (optional)
+        class_names = ['person']
+
+        # Count the number of people detected
+        people_count = 0
+
+        # Visualize detected objects and count people
+        for bbox, label, confidence in zip(bboxes, class_labels, confidence_scores):
+            if class_names[int(label)] == 'person':
+                people_count += 1
+                x_min, y_min, x_max, y_max = map(int, bbox[:4])
+                cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+                label_text = f'{class_names[int(label)]} {confidence:.2f}'
+                cv2.putText(frame, label_text, (x_min, y_min - 15),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        # Update the counter variable
+        self.people_count = people_count
+
+        # Display the count on the frame
+        cv2.putText(frame, f'People Count: {people_count}', (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+    def adjustDamper(self):
+        # Adjust damper position based on people count
+        if 1 <= self.people_count <= 3:
+            self.damper_position = 50
+        elif 4 <= self.people_count <= 6:
+            self.damper_position = 75
+        elif self.people_count > 6:
+            self.damper_position = 100
+        else:
+            self.damper_position = 0
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = Realtime()
+    window.show()
+    try:
+        sys.exit(app.exec_())
+    except:
+        print('Exiting')

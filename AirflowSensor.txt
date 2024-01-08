@@ -1,0 +1,67 @@
+const int trigPinB = 9;
+const int echoPinB = 10;
+const int trigPinA = 11;
+const int echoPinA = 12;
+float distance = 10;
+
+float durationBA, durationAB;
+
+void setup() {
+  pinMode(trigPinB, OUTPUT);
+  pinMode(echoPinB, INPUT);  
+  pinMode(trigPinA, OUTPUT);
+  pinMode(echoPinA, INPUT);
+  digitalWrite(trigPinB, LOW);
+  digitalWrite(trigPinA, LOW);  
+  
+  Serial.begin(9600);
+}
+
+void loop() {
+  trigger(trigPinB, trigPinA);
+  durationBA = pulseIn(echoPinB, HIGH);  
+  //durationBA = microsecondsToDistance(durationBA, 1.053614558, 7.891927107);
+  Serial.print("Duration BA: ");
+  Serial.print(durationBA);
+  Serial.println(" μs");  
+  delay(2000);
+
+  trigger(trigPinA, trigPinB);
+  durationAB = pulseIn(echoPinA, HIGH);  
+  //durationAB = microsecondsToDistance(durationAB, 1.064131606, -46.05693595);
+  Serial.print("Duration AB: ");
+  Serial.print(durationAB);
+  Serial.println(" μs");
+  float velocity = distance / 100 / 2 * (durationBA - durationAB) / (durationAB * durationBA) * 1000000;
+  Serial.print("Wind Speed: ");
+  Serial.print(velocity);
+  Serial.println(" m/s");
+  delay(1000);
+}
+
+void trigger(int trigPin, int trigPin2) {
+  PORTB &= B110101;
+  delayMicroseconds(2);
+  PORTB |= B001010;
+  delayMicroseconds(10);
+  PORTB &= B110101;
+  
+  
+//  digitalWrite(trigPinB, LOW);
+//  digitalWrite(trigPinA, LOW);
+//  delayMicroseconds(2);  
+//  digitalWrite(trigPin2, HIGH);
+//  digitalWrite(trigPin, HIGH);
+//  delayMicroseconds(10);
+//  digitalWrite(trigPin2, LOW);
+//  digitalWrite(trigPin, LOW);  
+}
+
+const double microsecondsToDistance(const long microseconds, double m, double b) {
+  // Initialize m and b to their respective values in the formula, y = mx + b.
+  // y = distance, x = time (in microseconds).
+  //  const double m = 0.01819544659;
+  //  const double b = -0.3819250489;
+  
+  return m * microseconds + b;
+}

@@ -1,0 +1,41 @@
+#include <DHT.h>
+
+#define DHTPIN 2   // Digital pin connected to the DHT sensor
+#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
+
+//DHT dht(DHTPIN, DHTTYPE);
+
+// Calibration factors
+float tempCalibration = 0.5;  // Adjust this value for temperature calibration
+float humidityCalibration = -5.0;  // Adjust this value for humidity calibration
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+}
+
+void loop() {
+  // Wait a few seconds between measurements.
+  delay(2000);
+
+  // Reading temperature or humidity takes about 250 milliseconds!
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(temperature) || isnan(humidity)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Apply calibration
+  temperature += tempCalibration;
+  humidity += humidityCalibration;
+
+  // Print the calibrated values
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.print(" °C\tHumidity: ");
+  Serial.print(humidity);
+  Serial.println(" %");
+}
